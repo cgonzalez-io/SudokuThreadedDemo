@@ -1,0 +1,97 @@
+plugins {
+    id 'java'
+    id "com.google.protobuf" version "0.8.13" apply true
+
+}
+
+description = "Protocol Buffers Socket Example"
+
+repositories {
+    mavenCentral()
+}
+
+// json and protobuf dependencies 
+dependencies {
+    implementation group: 'org.json', name: 'json', version: '20200518'
+    implementation group: 'com.google.protobuf', name: 'protobuf-java', version: '3.18.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter-params:5.9.0'
+    // https://mvnrepository.com/artifact/org.slf4j/slf4j-api
+    implementation group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
+    // https://mvnrepository.com/artifact/org.mockito/mockito-junit-jupiter
+    testImplementation group: 'org.mockito', name: 'mockito-junit-jupiter', version: '5.12.0'
+    // https://mvnrepository.com/artifact/org.mockito/mockito-inline
+    testImplementation group: 'org.mockito', name: 'mockito-inline', version: '5.2.0'
+    // https://mvnrepository.com/artifact/ch.qos.logback/logback-classic
+    runtimeOnly group: 'ch.qos.logback', name: 'logback-classic', version: '1.5.16'
+    // https://mvnrepository.com/artifact/net.logstash.logback/logstash-logback-encoder
+    implementation group: 'net.logstash.logback', name: 'logstash-logback-encoder', version: '7.4'
+}
+
+test {
+    useJUnitPlatform()  // Ensures JUnit 5 tests are recognized
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs 'build/generated/source/proto/main/java/buffers'
+        }
+    }
+}
+
+protobuf {
+    protoc {
+        artifact = 'com.google.protobuf:protoc:3.21.1'
+    }
+    generateProtoTasks {
+        all().each { task ->
+            task.builtins {
+            }
+        }
+    }
+}
+def host = 'localhost'
+def port = 8000
+
+// task reading in the arguments if any given, if not the default from above will be used
+task arguments {
+    if (project.hasProperty("host")) {
+        host = project.getProperty("host")
+    }
+    if (project.hasProperty("port")) {
+        port = project.getProperty("port")
+    }
+}
+
+//gradle runClient -Phost='localhost' -Pport=9099'
+task runClient(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    description = "Run Client"
+    main = 'client.SockBaseClient'
+    standardInput = System.in
+    // default args
+    args host
+    args port
+}
+
+//gradle runServer -Pport=9099
+task runServer(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    description = "Run Server"
+    main = 'server.SockBaseServer'
+    // default args
+    args port
+    args false
+}
+
+//gradle runServer -Pport=9099
+task runServerGrading(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    description = "Run Server"
+    main = 'server.SockBaseServer'
+    // default args
+    args port
+    args true
+}

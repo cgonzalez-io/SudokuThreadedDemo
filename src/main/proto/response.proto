@@ -1,0 +1,59 @@
+syntax = "proto2";
+
+package operation;
+
+option java_package = "buffers";
+option java_outer_classname = "ResponseProtos";
+
+
+// A response from the server can be any of these types 
+// More detailed description can be found in PROTOCOL.md
+message Response {
+    enum ResponseType {
+        GREETING = 0;
+        LEADERBOARD = 1;
+        START = 2;
+        PLAY = 3;
+        WON = 4;
+        ERROR = 5;
+        BYE = 6;
+    }
+
+    enum EvalType {
+        UPDATE = 0;          // number filled
+        PRESET_VALUE = 1;    // number cannot be filled as it was one of the pre-generated ones
+        DUP_ROW = 2;         // number exists in row
+        DUP_COL = 3;         // number exists in col
+        DUP_GRID = 4;        // number exists in grid
+        CLEAR_VALUE = 5;     // number cleared (reset to 'X')
+        CLEAR_COL = 6;       // column cleared (all changed values reset to 'X')
+        CLEAR_ROW = 7;       // row cleared (all changed values reset to 'X')
+        CLEAR_GRID = 8;      // grid cleared (all changed values reset to 'X')
+        CLEAR_BOARD = 9;     // board cleared (all changed values reset to 'X')
+        RESET_BOARD = 10;
+
+    }
+
+    optional ResponseType responseType = 1 [default = GREETING];
+
+    // Possible fields, see PROTOCOL.md for details
+
+    optional string menuoptions = 3; // the menu send to the client
+
+    repeated Entry leader = 4; // leaderboard
+
+    optional string board = 5;  // game board
+    optional EvalType type = 6; // see above
+
+    optional string message = 7; // error or other messages
+    optional int32 errorType = 9; // type of error see PROTOCOL.md
+    optional int32 points = 8; // points
+    optional int32 next = 10; // Tells the client what it wants next 1 - name request, 2 - main menu, 3 - game menu
+}
+
+// entry for the leader board
+message Entry {
+    optional string name = 1;         // name of user
+    optional int32 points = 2;        // how many points player has
+    optional int32 logins = 3;        // how many logins
+}

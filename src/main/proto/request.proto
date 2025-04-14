@@ -1,0 +1,37 @@
+syntax = "proto2";
+
+package operation;
+
+option java_package = "buffers";
+option java_outer_classname = "RequestProtos";
+
+// every request has one of these types
+message Request {
+    enum OperationType {
+        NAME = 0;             // when the user sends over their name -- has the name field as data
+        LEADERBOARD = 1;      // when the user wants to see the leader board - no further data
+        START = 2;            // when the user wants to enter a game -- no further data
+        UPDATE = 3;           // when the user wants to update a value and sends a row and column to the server -- has the row, column and value as data
+        CLEAR = 4;            // when the user wants to clear a value -- has the row, column and value as data (value specifying what kind of clear)
+        QUIT = 5;             // when the user wants to quit the game -- has no further data
+    }
+
+    optional OperationType operationType = 1 [default = NAME]; // has the operation type
+    optional string name = 2;         // the name field used for NAME request
+    optional int32 row = 3;           // row field for the UPDATE and CLEAR request
+    optional int32 column = 4;        // column field for the UPDATE and CLEAR request
+    optional int32 value = 5;         // numeric value for the UPDATE and CLEAR request
+    optional int32 difficulty = 6;    // sets the difficulty of the game
+}
+
+// see the starter code on how to use this, e.g. writeToLog("Mehlhase", Message.CONNECT) would write a log for connecting to your server for me into your log file
+enum Message {
+    CONNECT = 0;        // when client connects to your server
+    START = 1;          // when client starts a game
+    WIN = 2;            // when client wins
+//    LOST = 3;           // when client loses
+}
+
+message Logs {
+    repeated string log = 1;        // basically a list of log messages
+}
