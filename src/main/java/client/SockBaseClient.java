@@ -7,11 +7,11 @@ import java.io.*;
 import java.net.Socket;
 
 class SockBaseClient {
-    public static void main (String[] args) throws Exception {
+    public static void main(String[] args) throws Exception {
         Socket serverSock = null;
         OutputStream out = null;
         InputStream in = null;
-        int i1=0, i2=0;
+        int i1 = 0, i2 = 0;
         int port = 8000; // default port
 
         // Make sure two arguments are given
@@ -73,6 +73,7 @@ class SockBaseClient {
 
     /**
      * handles building a simple name requests, asks the user for their name and builds the request
+     *
      * @return Request.Builder which holds all teh information for the NAME request
      */
     static Request.Builder nameRequest() throws IOException {
@@ -87,6 +88,7 @@ class SockBaseClient {
 
     /**
      * Shows the main menu and lets the user choose a number, it builds the request for the next server call
+     *
      * @return Request.Builder which holds the information the server needs for a specific request
      */
     static Request.Builder chooseMenu(Request.Builder req, Response response) throws IOException {
@@ -112,8 +114,8 @@ class SockBaseClient {
      * Exits the connection
      */
     static void exitAndClose(InputStream in, OutputStream out, Socket serverSock) throws IOException {
-        if (in != null)   in.close();
-        if (out != null)  out.close();
+        if (in != null) in.close();
+        if (out != null) out.close();
         if (serverSock != null) serverSock.close();
         System.exit(0);
     }

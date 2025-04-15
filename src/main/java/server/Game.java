@@ -1,14 +1,17 @@
 package server;
-import java.util.*;
-import java.io.*;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 /**
- * Class: Game 
+ * Class: Game
  * Description: Game class that can load an ascii image
  * Class can be used to hold the persistent state for a game for different threads
  * synchronization is not taken care of .
  * You can change this Class in any way you like or decide to not use it at all
- * I used this class in my SockBaseServer to create a new game and keep track of the current image evenon differnt threads. 
+ * I used this class in my SockBaseServer to create a new game and keep track of the current image evenon differnt threads.
  * My threads each get a reference to this Game
  */
 
@@ -17,16 +20,16 @@ public class Game {
     /**
      * fullBoard: Solution with no empty spots
      * referenceBoard: the board with the initial empty spaces, used for clearing, determining if spot being cleared is
-     *                  one that was generated with the board, etc.
+     * one that was generated with the board, etc.
      * playerBoard: the board directly modified by the player selecting spots
      * difficulty: how many empty cells in symmetry, if you notice the empty spots on the board the opposite
-     *          grids are a mirror of themselves
+     * grids are a mirror of themselves
      */
     private final int size = 9;
 
-    private final char[][] solvedBoard =  new char[size][size]; // the solution
-    private final char[][] referenceBoard =  new char[size][size]; // the given board to player at start
-    private final char[][] playerBoard =  new char[size][size]; // current board player sees
+    private final char[][] solvedBoard = new char[size][size]; // the solution
+    private final char[][] referenceBoard = new char[size][size]; // the given board to player at start
+    private final char[][] playerBoard = new char[size][size]; // current board player sees
     private int difficulty = 1;
 
     private int points = 0;
@@ -34,7 +37,7 @@ public class Game {
     private boolean won; // if the game is won or not
 
 
-    public Game(){
+    public Game() {
         // you can of course add more or change this setup completely. You are totally free to also use just Strings in your Server class instead of this class
         won = true; // setting it to true, since then in newGame() a new image will be created
 
@@ -42,20 +45,22 @@ public class Game {
 
     /**
      * Sets the won flag to true
+     *
      * @param args Unused.
      * @return Nothing.
      */
-    public void setWon(){
+    public void setWon() {
         won = true;
     }
 
-    public boolean getWon(){
+    public boolean getWon() {
         return won;
     }
 
     /**
      * Good to use for getting the first board of game
      * Method loads in a new image from the specified files and creates the hidden image for it.
+     *
      * @return Nothing.
      */
     public void newGame(boolean grading, int difficulty) {
@@ -114,17 +119,20 @@ public class Game {
     /**
      * Might be good to use when CLEAR and getting a new board
      * Method that creates a new board with given grading flag but same difficulty as was provided before
+     *
      * @return Nothing.
      */
-    public void newBoard(boolean grading){
+    public void newBoard(boolean grading) {
         newGame(grading, difficulty);
     }
 
 
     ////////////////////////
     // The next three methods are used in the game to create a new random board, you should not need to touch or call them
+
     /**
      * Creates a completely new Sudoku board (should not need to be changed)
+     *
      * @return Nothing.
      */
     public void create() {
@@ -158,58 +166,6 @@ public class Game {
     }
 
     /**
-     * Creates a completely new Sudoku board with Xs
-     * @return Nothing.
-     */
-    private void prepareForPlay() {
-        int empties = difficulty;
-
-        int maxCells = (int) Math.ceil((double) (size * size) / 2);
-        List<Integer> allCells = new ArrayList<>();
-        for (int i = 0; i < maxCells; i++) {
-            allCells.add(i);
-        }
-
-        Collections.shuffle(allCells);
-
-        List<Integer> cells = allCells.subList(0, Math.min(empties, allCells.size()));
-
-        for (Integer cell : cells) {
-            int row = cell / size;
-            int col = cell % size;
-
-            playerBoard[row][col] = 'X';
-            playerBoard[8 - row][8 - col] = 'X';
-
-            referenceBoard[row][col] = 'X';
-            referenceBoard[8 - row][8 - col] = 'X';
-        }
-    }
-
-    /**
-     * Creates a completely new Sudoku board (should not need to be changed)
-     * @return Nothing.
-     */
-    private List<Integer> shuffle() {
-        List<Integer> first = new ArrayList<>(Arrays.asList(0, 1, 2));
-        List<Integer> second = new ArrayList<>(Arrays.asList(3, 4, 5));
-        List<Integer> third = new ArrayList<>(Arrays.asList(6, 7, 8));
-
-        Collections.shuffle(first);
-        Collections.shuffle(second);
-        Collections.shuffle(third);
-
-        List<Integer> numbers = new ArrayList<>();
-        numbers.addAll(first);
-        numbers.addAll(second);
-        numbers.addAll(third);
-
-        Collections.shuffle(numbers);
-
-        return numbers;
-    }
-
-    /**
      * Good to use for an UPDATE call
      * Method changes the given row column with value if type is 0 and the move is valid.
      * If move is not valid it returns a number specifying what went wrong
@@ -223,7 +179,7 @@ public class Game {
         int resultType = 0;
         if (type == 0) {
             if (referenceBoard[row][column] != 'X') {
-                resultType =  1; // the original number so cannot replace
+                resultType = 1; // the original number so cannot replace
 
             } else {
                 // not original number so replacing
@@ -231,7 +187,7 @@ public class Game {
                 int moveOK = checkMove(row, column);
                 if (moveOK == 0) {
                     won = checkWon();
-                    resultType =  0;
+                    resultType = 0;
                 } else {
                     playerBoard[row][column] = referenceBoard[row][column];
                     resultType = moveOK;
@@ -279,18 +235,20 @@ public class Game {
      * I never called this separatly from server
      * Checks if the move was valid for setting a number used in previous method
      */
-    public int checkMove(int row, int col){
-        if(isExistsInRow(row)){
+    public int checkMove(int row, int col) {
+        if (isExistsInRow(row)) {
             return 2;
-        } else if (isExistsInCol(col)){
+        } else if (isExistsInCol(col)) {
             return 3;
-        } else if(isExistsInGrid(row, col)){
+        } else if (isExistsInGrid(row, col)) {
             return 4;
         } else { // X was replaced
             return 0;
         }
     }
-    /** Might be useful in server
+
+    /**
+     * Might be useful in server
      * Method that checks if there is still an X on board, if so return false else true (basically checks if won)
      */
     public boolean checkWon() {
@@ -393,9 +351,9 @@ public class Game {
         return grid.toString();
     }
 
-
     /**
      * Method returns the String of the current board
+     *
      * @return String of the current board
      */
     public String getBoard() {
@@ -426,7 +384,7 @@ public class Game {
             sb.append("\n");
         }
 
-        return(sb.toString());
+        return (sb.toString());
     }
 
     public int getPoints() {
@@ -435,5 +393,59 @@ public class Game {
 
     public int setPoints(int diff) {
         return points += diff;
+    }
+
+    /**
+     * Creates a completely new Sudoku board with Xs
+     *
+     * @return Nothing.
+     */
+    private void prepareForPlay() {
+        int empties = difficulty;
+
+        int maxCells = (int) Math.ceil((double) (size * size) / 2);
+        List<Integer> allCells = new ArrayList<>();
+        for (int i = 0; i < maxCells; i++) {
+            allCells.add(i);
+        }
+
+        Collections.shuffle(allCells);
+
+        List<Integer> cells = allCells.subList(0, Math.min(empties, allCells.size()));
+
+        for (Integer cell : cells) {
+            int row = cell / size;
+            int col = cell % size;
+
+            playerBoard[row][col] = 'X';
+            playerBoard[8 - row][8 - col] = 'X';
+
+            referenceBoard[row][col] = 'X';
+            referenceBoard[8 - row][8 - col] = 'X';
+        }
+    }
+
+    /**
+     * Creates a completely new Sudoku board (should not need to be changed)
+     *
+     * @return Nothing.
+     */
+    private List<Integer> shuffle() {
+        List<Integer> first = new ArrayList<>(Arrays.asList(0, 1, 2));
+        List<Integer> second = new ArrayList<>(Arrays.asList(3, 4, 5));
+        List<Integer> third = new ArrayList<>(Arrays.asList(6, 7, 8));
+
+        Collections.shuffle(first);
+        Collections.shuffle(second);
+        Collections.shuffle(third);
+
+        List<Integer> numbers = new ArrayList<>();
+        numbers.addAll(first);
+        numbers.addAll(second);
+        numbers.addAll(third);
+
+        Collections.shuffle(numbers);
+
+        return numbers;
     }
 }
