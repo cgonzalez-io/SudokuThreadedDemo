@@ -37,17 +37,25 @@ public class Game {
     private boolean won; // if the game is won or not
 
 
+    /**
+     * Constructor for the Game class.
+     * Initializes the game state by setting the 'won' field to true.
+     * This ensures that a new image will be created when calling the newGame() method.
+     * The constructor does not perform any additional setup beyond this initialization.
+     */
     public Game() {
         // you can of course add more or change this setup completely. You are totally free to also use just Strings in your Server class instead of this class
         won = true; // setting it to true, since then in newGame() a new image will be created
 
     }
 
+
     /**
-     * Sets the won flag to true
-     *
-     * @param args Unused.
-     * @return Nothing.
+     * Marks the game as won by setting the internal state of the 'won' field to true.
+     * This method does not perform any additional checks or operations
+     * and simply updates the 'won' flag, which can be used to track whether
+     * the game has been completed successfully.
+     * for testing purposes, you can call this method to simulate a win condition.
      */
     public void setWon() {
         won = true;
@@ -60,8 +68,6 @@ public class Game {
     /**
      * Good to use for getting the first board of game
      * Method loads in a new image from the specified files and creates the hidden image for it.
-     *
-     * @return Nothing.
      */
     public void newGame(boolean grading, int difficulty) {
         this.difficulty = difficulty;
@@ -119,8 +125,6 @@ public class Game {
     /**
      * Might be good to use when CLEAR and getting a new board
      * Method that creates a new board with given grading flag but same difficulty as was provided before
-     *
-     * @return Nothing.
      */
     public void newBoard(boolean grading) {
         newGame(grading, difficulty);
@@ -132,8 +136,6 @@ public class Game {
 
     /**
      * Creates a completely new Sudoku board (should not need to be changed)
-     *
-     * @return Nothing.
      */
     public void create() {
 
@@ -232,8 +234,16 @@ public class Game {
     }
 
     /**
-     * I never called this separatly from server
-     * Checks if the move was valid for setting a number used in previous method
+     * Checks the validity of a move in a Sudoku board by evaluating
+     * whether a number already exists in the same row, column, or grid.
+     *
+     * @param row the row index where the move is being checked
+     * @param col the column index where the move is being checked
+     * @return an integer indicating the result of the check:
+     * 0 - the move is valid, and the board can be changed
+     * 2 - the number already exists in the specified row
+     * 3 - the number already exists in the specified column
+     * 4 - the number already exists in the specified grid
      */
     public int checkMove(int row, int col) {
         if (isExistsInRow(row)) {
@@ -248,8 +258,12 @@ public class Game {
     }
 
     /**
-     * Might be useful in server
-     * Method that checks if there is still an X on board, if so return false else true (basically checks if won)
+     * Checks whether the game has been won by verifying all cells in the player's board.
+     * The method ensures that there are no cells marked with 'X',
+     * indicating an unresolved or incomplete state.
+     *
+     * @return true if all cells in the player's board are not marked as 'X', indicating a win;
+     * false otherwise.
      */
     public boolean checkWon() {
         for (int row = 0; row < playerBoard.length; row++) {
@@ -263,7 +277,11 @@ public class Game {
     }
 
     /**
-     * Method checks if in the current board there is a duplicate number in the current grid and returns true if there is a duplicate
+     * Checks whether a duplicate number exists in the 3x3 grid that includes the specified row and column.
+     *
+     * @param row the row index of the 3x3 grid to check
+     * @param col the column index of the 3x3 grid to check
+     * @return true if there is a duplicate number in the 3x3 grid; false otherwise
      */
     public boolean isExistsInGrid(int row, int col) {
         String currGrid = getGrid(getBoard(), row, col);
@@ -282,7 +300,12 @@ public class Game {
     }
 
     /**
-     * Method checks if in the current board there is a duplicate number in the current column and returns true if there is a duplicate
+     * Checks whether a duplicate numeric value exists in the specified column
+     * of a Sudoku board. Values are fetched for the column, and duplicates
+     * are identified excluding cells marked with 'X'.
+     *
+     * @param col the column index (0-based) for which to check for duplicate values
+     * @return true if a duplicate value exists in the column; false otherwise
      */
     public boolean isExistsInCol(int col) {
         String currCol = getColumn(getBoard(), col);
@@ -301,7 +324,12 @@ public class Game {
     }
 
     /**
-     * Method checks if in the current board there is a duplicate number in the current row and returns true if there is a duplicate
+     * Checks if there are duplicate numeric values in the specified row of the Sudoku board.
+     * This method evaluates the current state of the board and determines
+     * whether a number appears more than once in the given row, ignoring 'X' characters.
+     *
+     * @param row the row index to check for duplicate numeric values, where 0 is the first row
+     * @return true if a duplicate numeric value exists in the specified row, false otherwise
      */
     public boolean isExistsInRow(int row) {
         String currRow = getBoard().substring((row * 10), (row * 10) + 10);
@@ -320,7 +348,13 @@ public class Game {
     }
 
     /**
-     * Gets all values in column
+     * Extracts a specific column from a Sudoku board representation.
+     * The board is represented as a single string with rows separated by a fixed step,
+     * and the method retrieves all characters corresponding to the specified column.
+     *
+     * @param board the string representation of the Sudoku board
+     * @param col   the column index (0-based) to extract from the board
+     * @return a string containing all characters from the specified column
      */
     public String getColumn(String board, int col) {
         StringBuilder column = new StringBuilder();
@@ -335,6 +369,11 @@ public class Game {
 
     /**
      * Gets all values in grid
+     *
+     * @param board the current board
+     * @param row   the row of the grid
+     * @param col   the column of the grid
+     * @return the grid as a string
      */
     public String getGrid(String board, int row, int col) {
         StringBuilder grid = new StringBuilder();
@@ -367,6 +406,8 @@ public class Game {
 
     /**
      * returns version of board to be shown on CLI, nicer way of seeing it and splitting it up
+     *
+     * @return String of the current board
      */
     public String getDisplayBoard() {
         StringBuilder sb = new StringBuilder();
@@ -397,8 +438,6 @@ public class Game {
 
     /**
      * Creates a completely new Sudoku board with Xs
-     *
-     * @return Nothing.
      */
     private void prepareForPlay() {
         int empties = difficulty;
@@ -428,7 +467,7 @@ public class Game {
     /**
      * Creates a completely new Sudoku board (should not need to be changed)
      *
-     * @return Nothing.
+     * @return numbers, a list of shuffled integers from 0 to 8
      */
     private List<Integer> shuffle() {
         List<Integer> first = new ArrayList<>(Arrays.asList(0, 1, 2));

@@ -6,6 +6,15 @@ import buffers.ResponseProtos.Response;
 import java.io.*;
 import java.net.Socket;
 
+/**
+ * This class represents a basic socket-based client that communicates with a server using a predefined protocol.
+ * The client sends requests and receives responses from the server, allowing interaction through user input.
+ * It supports basic operations such as initiating connections, handling server responses, and performing specific actions
+ * like name requests, menu selections, and board manipulation.
+ * The main method establishes a connection to a server with a specified host and port.
+ * It manages input/output streams and continuously handles responses from the server.
+ * Based on the server response type, the client builds appropriate subsequent requests and sends them back.
+ */
 class SockBaseClient {
     public static void main(String[] args) throws Exception {
         Socket serverSock = null;
@@ -184,6 +193,18 @@ class SockBaseClient {
         return coordinates;
     }
 
+    /**
+     * Prompts the user to select the row and column of a value they wish to clear
+     * from a board. The method captures user input for the row and column,
+     * validates it as integers within the range of 1 to 9, and checks for an "exit"
+     * command. If the user enters "exit", it returns an array with marker values
+     * indicating termination.
+     * @return An integer array of size 3, where:
+     *         - index 0 represents the selected row (1-9, or Integer.MIN_VALUE for exit),
+     *         - index 1 represents the selected column (1-9, or Integer.MIN_VALUE for exit),
+     *         - index 2 is set to 1, indicating a value-clear action.
+     * @throws Exception if an I/O error occurs while reading user input.
+     */
     static int[] boardSelectionClearValue() throws Exception {
         int[] coordinates = new int[3];
 
@@ -232,6 +253,15 @@ class SockBaseClient {
         return coordinates;
     }
 
+    /**
+     * Handles logic for selecting and clearing an entire row in a game board.
+     * Prompts the user to input an integer representing the row to clear (from 1 to 9),
+     * or to type "exit" to terminate the selection process.
+     * @return An integer array of size 3, where:
+     *         - The first element is the row number to clear.
+     *         - The second element is set to -1 as a placeholder.
+     *         - The third element is a constant value of 2 to denote a row clear request.
+     *         If the user inputs "exit*/
     static int[] boardSelectionClearRow() throws Exception {
         int[] coordinates = new int[3];
 
@@ -262,6 +292,14 @@ class SockBaseClient {
         return coordinates;
     }
 
+    /**
+     * Handles the logic for clearing a specific column in the game board.
+     * Prompts the user to input a column number between 1 and 9 and validates the input.
+     * If user inputs 'exit', an array with {@code Integer.MIN_VALUE} for all elements is returned.
+     * @return An integer array of size 3 where:
+     *         {@code array[0] = -1}, {@code array[1]} contains the selected column number,
+     *         and {@code array[2] = 3} representing the column clear action.
+     * @throws Exception If an error occurs*/
     static int[] boardSelectionClearCol() throws Exception {
         int[] coordinates = new int[3];
 
@@ -291,6 +329,14 @@ class SockBaseClient {
         return coordinates;
     }
 
+    /**
+     * Prompts the user to select a grid area to clear and returns the corresponding
+     * grid selection as an integer array. The method asks the user to input a number
+     * between 1 and 9 to indicate the area of the grid to be cleared.
+     * If the user inputs "exit", the method returns an array with Integer.MIN_VALUE
+     * as all elements, signaling an exit operation.
+     * @return an integer array where:
+     *         - index 0 contains*/
     static int[] boardSelectionClearGrid() throws Exception {
         int[] coordinates = new int[3];
 
