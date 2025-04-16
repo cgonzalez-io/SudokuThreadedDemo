@@ -1,7 +1,7 @@
 package client;
 
-import buffers.RequestProtos.*;
-import buffers.ResponseProtos.*;
+import buffers.RequestProtos.Request;
+import buffers.ResponseProtos.Response;
 
 import java.io.*;
 import java.net.Socket;
