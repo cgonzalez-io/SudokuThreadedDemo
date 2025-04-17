@@ -52,11 +52,14 @@ protobuf {
         }
     }
 }
-def host = 'localhost'
-def port = 8000
+ext {
+    port = project.findProperty('port') ?: '8000'
+    grading = project.findProperty('grading') ?: 'true'
+    host = project.findProperty('host') ?: 'localhost'   // NEW
+}
 
 // task reading in the arguments if any given, if not the default from above will be used
-task arguments {
+tasks.register('arguments') {
     if (project.hasProperty("host")) {
         host = project.getProperty("host")
     }
@@ -66,10 +69,10 @@ task arguments {
 }
 
 //gradle runClient -Phost='localhost' -Pport=9099'
-task runClient(type: JavaExec) {
+tasks.register('runClient', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     description = "Run Client"
-    main = 'client.SockBaseClient'
+    mainClass = 'client.SockBaseClient'
     standardInput = System.in
     // default args
     args host
@@ -77,21 +80,29 @@ task runClient(type: JavaExec) {
 }
 
 //gradle runServer -Pport=9099
-task runServer(type: JavaExec) {
+tasks.register('runServer', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     description = "Run Server"
-    main = 'server.SockBaseServer'
+    mainClass = 'server.SockBaseServer'
     // default args
     args port
     args false
 }
 
 //gradle runServer -Pport=9099
-task runServerGrading(type: JavaExec) {
+tasks.register('runServerGrading', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     description = "Run Server"
-    main = 'server.SockBaseServer'
+    mainClass = 'server.SockBaseServer'
     // default args
     args port
     args true
+}
+
+tasks.register('runThreaded', JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'server.ThreadedSudokuServer'
+    //            <port>     <gradingMode>  [bindHost]
+    args port, grading, host
+    jvmArgs "-DmaxThreads=20"    // optional bound
 }
