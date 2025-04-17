@@ -11,7 +11,9 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A SockBaseServer that:
@@ -257,7 +259,7 @@ public class SockBaseServer {
             return Response.newBuilder()
                     .setResponseType(Response.ResponseType.ERROR)
                     .setErrorType(5) // from PROTOCOL.md
-                    .setMessage("Error: difficulty is out of range")
+                    .setMessage("\nError: difficulty is out of range")
                     .setMenuoptions(menuOptions)
                     .setNext(2)  // main menu
                     .build();
@@ -272,41 +274,61 @@ public class SockBaseServer {
         return Response.newBuilder()
                 .setResponseType(Response.ResponseType.START)
                 .setBoard(game.getDisplayBoard())
-                .setMessage("\n")
+                .setMessage("\nStarting new game.")
                 .setMenuoptions(gameOptions)
                 .setNext(currentState)
                 .build();
     }
 
     /**
-     * Handles the leaderboard request by reading logs, parsing entries, and constructing
-     * a response containing leaderboard data.
-     * This method retrieves the log file data, parses it into leaderboard entries,
-     * and builds a response object that encapsulates the leaderboard details.
-     * The response also includes menu options and navigation details for proceeding
-     * to the next menu.
+     * Processes and generates a leaderboard from the server's log data.
+     * Aggregates logins and points for each user found in the log file,
+     * and constructs a response containing the leaderboard information.
+     * The response includes:
+     * 1. The type set to {@code Response.ResponseType.LEADERBOARD}.
+     * 2. Menu options for navigation.
+     * 3. An ordered list of leaderboard entries with user names, points, and login counts.
      *
-     * @return A {@code Response} object with a response type of {@code ResponseType.LEADERBOARD}
-     * containing the leaderboard entries, menu options, and navigation details.
-     * @throws Exception If an error occurs during log reading or entry parsing.
+     * @return A {@code Response} object containing the aggregated leaderboard data
+     * and navigation details for the client.
+     * @throws Exception If an error occurs while reading or processing the log file.
      */
+    // --- in SockBaseServer --------------------------------------------------
     private Response handleLeaderboard() throws Exception {
-        // read logs from file
         Logs.Builder logs = readLogFile();
 
-        // parse them into Entry messages
-        List<ResponseProtos.Entry> entries = parseLogsToEntries(logs);
+        /* Map<name, int[2]>  ->  [0]=logins , [1]=points */
+        Map<String, int[]> agg = new LinkedHashMap<>();
 
-        Response.Builder lb = Response.newBuilder()
+        for (String line : logs.getLogList()) {
+            // line format: "<DATE> : <name> - <Message>"
+            // keep everything between last colon and the dash
+            int dash = line.indexOf(" - ");
+            if (dash < 0) continue;
+            String left = line.substring(0, dash);      // “… : name”
+            int lastCol = left.lastIndexOf(':');        // the colon right before the name
+            String name = left.substring(lastCol + 1).trim();
+
+            // aggregate
+            agg.computeIfAbsent(name, k -> new int[]{0, 0})[0]++;  // ++logins
+            // you could add points here if you store them in the log
+        }
+
+        Response.Builder rb = Response.newBuilder()
                 .setResponseType(Response.ResponseType.LEADERBOARD)
                 .setMenuoptions(menuOptions)
-                .setNext(2); // main menu
+                .setNext(2);
 
-        for (ResponseProtos.Entry e : entries) {
-            lb.addLeader(e);
+        for (Map.Entry<String, int[]> e : agg.entrySet()) {
+            rb.addLeader(ResponseProtos.Entry.newBuilder()
+                    .setName(e.getKey())
+                    .setPoints(e.getValue()[1])
+                    .setLogins(e.getValue()[0])
+                    .build());
         }
-        return lb.build();
+        return rb.build();
     }
+
 
     /**
      * parseLogsToEntries - adapt to your log format,
@@ -348,6 +370,11 @@ public class SockBaseServer {
      * Also sets the type field to the correct EvalType
      */
     private Response handleUpdate(Request op) throws IOException {
+        // Check if the update operation has valid fields
+        if (op.getRow() == 0 || op.getColumn() == 0 || op.getValue() == 0) {
+            return error(2, "Invalid operation type");
+        }
+
         int row = op.getRow();
         int col = op.getColumn();
         int val = op.getValue();
@@ -527,7 +554,7 @@ public class SockBaseServer {
                 .setResponseType(Response.ResponseType.ERROR)
                 .setErrorType(eType)
                 .setMessage(message)
-                .setNext(inGame ? 3 : 2) // if in game => game menu, else main menu
+                .setNext(currentState) // 1=name, 2=main menu, 3=in-game
                 .build();
     }
 
