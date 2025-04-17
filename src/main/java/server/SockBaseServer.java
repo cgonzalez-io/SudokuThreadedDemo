@@ -5,6 +5,8 @@ import buffers.RequestProtos.Message;
 import buffers.RequestProtos.Request;
 import buffers.ResponseProtos;
 import buffers.ResponseProtos.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.ServerSocket;
@@ -22,16 +24,14 @@ import java.util.Map;
  * - Manages row/col bounds and game points
  */
 public class SockBaseServer {
+    private static final Logger logger = LoggerFactory.getLogger(SockBaseServer.class); // for logging
     // For your logs
     static String logFilename = "logs.txt";
-
     // Provided constants for menus:
     static String menuOptions = "\nWhat would you like to do? \n 1 - to see the leader board \n 2 - to enter a game \n 3 - quit the game";
     static String gameOptions = "\nChoose an action: \n (1-9) - Enter an int to specify the row you want to update \n c - Clear number \n r - New Board";
-
     // If we should load the "grading" puzzle or random puzzle
     private static boolean grading = true;
-
     private final int id;      // client ID for logging
     Socket clientSocket;
     InputStream in;
@@ -58,7 +58,7 @@ public class SockBaseServer {
             in = clientSocket.getInputStream();
             out = clientSocket.getOutputStream();
         } catch (Exception e) {
-            System.out.println("Error in constructor: " + e);
+            logger.error("Error in constructor: {}", String.valueOf(e));
         }
     }
 
@@ -67,7 +67,7 @@ public class SockBaseServer {
      */
     public static void main(String[] args) throws Exception {
         if (args.length != 2) {
-            System.out.println("Expected arguments: <port(int)> <gradingMode(true|false)>");
+            logger.error("Expected arguments: <port(int)> <gradingMode(true|false)>");
             System.exit(1);
         }
 
@@ -76,29 +76,29 @@ public class SockBaseServer {
             // parse port
             port = Integer.parseInt(args[0]);
         } catch (NumberFormatException nfe) {
-            System.out.println("[Port must be an integer]");
+            logger.error("[Port must be an integer]");
             return;
         }
         try {
             grading = Boolean.parseBoolean(args[1]);
         } catch (Exception e) {
-            System.out.println("Grading mode must be 'true' or 'false'");
+            logger.error("Grading mode must be 'true' or 'false'");
             return;
         }
 
         try (ServerSocket server = new ServerSocket(port)) {
-            System.out.println("Server started on port " + port + " with grading=" + grading);
+            logger.debug("Server started on port {} with grading={}", port, grading);
             int id = 1;
             while (true) {
                 Socket client = server.accept();
-                System.out.println("Attempting to connect to client-" + id);
+                logger.debug("Attempting to connect to client-{}", id);
                 // Each client has its own game instance
                 Game game = new Game();
                 SockBaseServer session = new SockBaseServer(client, game, id++);
                 session.startGame();
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("Error in main: {}", String.valueOf(e));
             System.exit(2);
         }
     }
@@ -111,10 +111,11 @@ public class SockBaseServer {
             while (true) {
                 Request op = Request.parseDelimitedFrom(in);
                 if (op == null) {
+                    logger.error("Request is null");
                     // Client disconnected unexpectedly
                     break;
                 }
-                System.out.println("Got request: " + op);
+                logger.debug("Got request: {}", op);
                 Response response;
 
                 boolean quit = false;
@@ -146,6 +147,8 @@ public class SockBaseServer {
                         response = error(2, "Unsupported operation");
                         break;
                 }
+                //print state of board
+                logger.debug("Current state: {} client: {}", currentState, id);
 
                 // Send response
                 response.writeDelimitedTo(out);
@@ -155,12 +158,12 @@ public class SockBaseServer {
                 }
             }
         } catch (SocketException se) {
-            System.out.println("Client disconnected => " + se.getMessage());
+            logger.error("Client disconnected => {}", se.getMessage());
         } catch (Exception ex) {
             Response errResp = error(0, "Unexpected error: " + ex.getMessage());
             errResp.writeDelimitedTo(out);
         } finally {
-            System.out.println("Client ID " + id + " disconnected");
+            logger.error("Client ID {} disconnected", id);
             inGame = false;
             exitAndClose(in, out, clientSocket);
         }
@@ -188,7 +191,7 @@ public class SockBaseServer {
                 logs.build().writeTo(fos);
             }
         } catch (Exception e) {
-            System.out.println("Issue while writing logs => " + e.getMessage());
+            logger.error("Issue while writing logs => {}", e.getMessage());
         }
     }
 
@@ -206,7 +209,7 @@ public class SockBaseServer {
         try {
             return logs.mergeFrom(new FileInputStream(logFilename));
         } catch (FileNotFoundException e) {
-            System.out.println(logFilename + " not found. Creating new file.");
+            logger.error("{} not found. Creating new file.", logFilename);
             return logs;
         }
     }
@@ -231,6 +234,8 @@ public class SockBaseServer {
         writeToLog(name, Message.CONNECT);
         currentState = 2; // go to main menu
 
+        logger.info("Client ID {} connected with name: {}", id, name);
+
         return Response.newBuilder()
                 .setResponseType(Response.ResponseType.GREETING)
                 .setMessage("Hello " + name + " and welcome to a simple game of Sudoku.")
@@ -252,7 +257,7 @@ public class SockBaseServer {
      * @throws IOException If an I/O error occurs during the operation.
      */
     private Response handleStart(Request op) throws IOException {
-        System.out.println("START request received.");
+        logger.info("START request received.");
         int difficulty = op.getDifficulty();
         if (difficulty < 1 || difficulty > 20) {
             // Difficulty out of range
@@ -267,9 +272,12 @@ public class SockBaseServer {
 
         // Start new game
         game.newGame(grading, difficulty);
-        System.out.println(game.getDisplayBoard());
+        logger.debug(game.getDisplayBoard());
         inGame = true;
         currentState = 3; // in-game
+
+        // Log the start of the game
+        logger.info("Starting new game with difficulty {}", difficulty);
 
         return Response.newBuilder()
                 .setResponseType(Response.ResponseType.START)
@@ -313,6 +321,7 @@ public class SockBaseServer {
             agg.computeIfAbsent(name, k -> new int[]{0, 0})[0]++;  // ++logins
             // you could add points here if you store them in the log
         }
+        logger.debug("Aggregated leaderboard: {}", agg);
 
         Response.Builder rb = Response.newBuilder()
                 .setResponseType(Response.ResponseType.LEADERBOARD)
@@ -331,7 +340,7 @@ public class SockBaseServer {
 
 
     /**
-     * parseLogsToEntries - adapt to your log format,
+     * parseLogsToEntries - adapt to log format,
      * converting each line to a minimal Entry with name, points, logins if available.
      */
     private List<ResponseProtos.Entry> parseLogsToEntries(Logs.Builder logs) {
@@ -408,7 +417,7 @@ public class SockBaseServer {
             return error(0, "Unknown update error");
         }
         // if result=0 => success => do nothing
-
+        logger.debug("Update result: {} => {}", evalType, result);
         // check if won => +20
         boolean puzzleDone = game.getWon();
         if (puzzleDone) {
@@ -487,6 +496,9 @@ public class SockBaseServer {
         game.setPoints(-5);
         int res = game.updateBoard(crow, ccol, cval, cval);
 
+        //log
+        logger.debug("Clearing {} => {}", evalType, res);
+
         // just keep playing
         return Response.newBuilder()
                 .setResponseType(Response.ResponseType.PLAY)
@@ -508,6 +520,7 @@ public class SockBaseServer {
      */
     private Response handleQuit() throws IOException {
         inGame = false;
+        logger.info("Client ID {} quitting.", id);
         return Response.newBuilder()
                 .setResponseType(Response.ResponseType.BYE)
                 .setMessage("Thank you for playing! goodbye.")
@@ -549,6 +562,7 @@ public class SockBaseServer {
                 message = "\nError: cannot process your request => " + info;
                 break;
         }
+        logger.debug("Error: {} => {}", err, message);
 
         return Response.newBuilder()
                 .setResponseType(Response.ResponseType.ERROR)
@@ -571,5 +585,6 @@ public class SockBaseServer {
         if (in != null) in.close();
         if (out != null) out.close();
         if (serverSock != null) serverSock.close();
+        logger.info("Closed all resources for client ID {}", id);
     }
 }
