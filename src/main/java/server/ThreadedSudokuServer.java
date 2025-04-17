@@ -155,7 +155,13 @@ public class ThreadedSudokuServer {
                                         .build();
                             }
                         }
-                        case UPDATE -> resp = updateResp(req);
+                        case UPDATE -> {
+                            if (!inGame) {
+                                resp = errorResp(2, state);
+                                break;
+                            }
+                            resp = updateResp(req);
+                        }
                         case CLEAR -> resp = clearResp(req);
                         case QUIT -> {
                             resp = Response.newBuilder()
@@ -293,7 +299,7 @@ public class ThreadedSudokuServer {
                 default -> "\nError: cannot process your request";
             };
             return Response.newBuilder().setResponseType(Response.ResponseType.ERROR)
-                    .setErrorType(code).setMessage(msg).setNext(next).build();
+                    .setErrorType(code).setMessage(msg).setNext(next).setMenuoptions(next == 2 ? MENU_MAIN : MENU_GAME).build();
         }
 
         /**

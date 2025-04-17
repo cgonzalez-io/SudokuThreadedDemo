@@ -158,8 +158,9 @@ public class ServerTest {
         ResponseProtos.Response response = ResponseProtos.Response.parseDelimitedFrom(in);
 
         assertEquals(ResponseProtos.Response.ResponseType.ERROR, response.getResponseType());
-        System.out.println(response.getMessage());
         assertEquals("\nError: difficulty is out of range", response.getMessage());
+        System.out.println("printing menu options");
+        System.out.println(response.getMenuoptions());
         assertEquals("\nWhat would you like to do? \n 1 - to see the leader board \n 2 - to enter a game \n 3 - quit the game", response.getMenuoptions());
         assertEquals(2, response.getNext());
         assertEquals(5, response.getErrorType());
