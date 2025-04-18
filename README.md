@@ -74,6 +74,7 @@ $ gradle runClient -Phost=192.168.1.50 -Pport=9000
 ---
 
 ## Screencast
+Video Link: [YouTube](https://www.youtube.com/playlist?list=PLNJf3PhE4U6D9uje1Qz3t28TqqqIoDkZQ)
 
 *Link here once recorded – ≤ 4 minutes demonstrating build, multiple clients, leaderboard & graceful quit.*
 
