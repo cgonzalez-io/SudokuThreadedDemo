@@ -137,6 +137,9 @@ public class ServerTest {
         assertEquals(ResponseProtos.Response.ResponseType.LEADERBOARD, leader.getResponseType());
         assertEquals(menuOptions, leader.getMenuoptions());
 
+        System.out.println("printing leaderboard");
+        System.out.println(leader.getLeaderList());
+
         // -------- NEW ASSERTION LOGIC -------------------------
         boolean found = leader.getLeaderList().stream()
                 .anyMatch(e -> e.getName().equals(name) && e.getPoints() == 0);

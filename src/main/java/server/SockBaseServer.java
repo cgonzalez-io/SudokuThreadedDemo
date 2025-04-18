@@ -215,6 +215,28 @@ public class SockBaseServer {
     }
 
     /**
+     * Logs the score of a player to the log file, including the player's name, score, and a timestamp.
+     * The method reads the current log file, appends the new score entry, and writes it back to the
+     * log file. Handles exceptions that may occur during the process and logs errors if any issues arise.
+     *
+     * @param player The name of the player whose score is being logged.
+     * @param points The score value associated with the player's action.
+     */
+    public void writeScore(String player, int points) {
+        try {
+            Logs.Builder logs = readLogFile();
+            Date now = java.util.Calendar.getInstance().getTime();
+            // we’ll use a very easy‑to‑parse marker
+            logs.addLog(now + ": " + player + " - SCORE=" + points);
+            try (FileOutputStream fos = new FileOutputStream(logFilename)) {
+                logs.build().writeTo(fos);
+            }
+        } catch (Exception e) {
+            logger.error("Could not write score entry", e);
+        }
+    }
+
+    /**
      * Handles the name input from the client. If the name is blank, an error response is returned.
      * Otherwise, the name is set, logged, and the state transitions to the main menu.
      * A greeting response is then constructed and returned to the client.
@@ -307,20 +329,22 @@ public class SockBaseServer {
 
         /* Map<name, int[2]>  ->  [0]=logins , [1]=points */
         Map<String, int[]> agg = new LinkedHashMap<>();
+        // int[0] = logins   int[1] = max points
 
         for (String line : logs.getLogList()) {
-            // line format: "<DATE> : <name> - <Message>"
-            // keep everything between last colon and the dash
             int dash = line.indexOf(" - ");
             if (dash < 0) continue;
-            String left = line.substring(0, dash);      // “… : name”
-            int lastCol = left.lastIndexOf(':');        // the colon right before the name
-            String name = left.substring(lastCol + 1).trim();
+            String name = line.substring(line.lastIndexOf(':', dash) + 1, dash).trim();
 
-            // aggregate
-            agg.computeIfAbsent(name, k -> new int[]{0, 0})[0]++;  // ++logins
-            // you could add points here if you store them in the log
+            agg.computeIfAbsent(name, k -> new int[]{0, 0})[0]++;   // ++logins
+
+            int idx = line.indexOf("SCORE=");
+            if (idx >= 0) {
+                int pts = Integer.parseInt(line.substring(idx + 6).trim());
+                agg.get(name)[1] = Math.max(agg.get(name)[1], pts);   // keep best score
+            }
         }
+
         logger.debug("Aggregated leaderboard: {}", agg);
 
         Response.Builder rb = Response.newBuilder()
@@ -337,7 +361,6 @@ public class SockBaseServer {
         }
         return rb.build();
     }
-
 
     /**
      * parseLogsToEntries - adapt to log format,
@@ -372,6 +395,10 @@ public class SockBaseServer {
                 })
                 .toList();
     }
+
+    //--------------------------------------------------------------------------------
+    // ERRORS & LOGGING
+    //--------------------------------------------------------------------------------
 
     /**
      * handleUpdate => places a number in the Sudoku board. If invalid => -2 points
@@ -422,6 +449,8 @@ public class SockBaseServer {
         boolean puzzleDone = game.getWon();
         if (puzzleDone) {
             game.setPoints(20);
+            // write score
+            writeScore(name, game.getPoints());
             return Response.newBuilder()
                     .setResponseType(Response.ResponseType.WON)
                     .setBoard(game.getDisplayBoard())
@@ -443,10 +472,6 @@ public class SockBaseServer {
                 .setNext(3)
                 .build();
     }
-
-    //--------------------------------------------------------------------------------
-    // ERRORS & LOGGING
-    //--------------------------------------------------------------------------------
 
     /**
      * handleClear => row/col might be -1 if not used,
@@ -494,6 +519,8 @@ public class SockBaseServer {
 
         // -5 points for clearing
         game.setPoints(-5);
+        //write score
+        writeScore(name, game.getPoints());
         int res = game.updateBoard(crow, ccol, cval, cval);
 
         //log
@@ -521,6 +548,8 @@ public class SockBaseServer {
     private Response handleQuit() throws IOException {
         inGame = false;
         logger.info("Client ID {} quitting.", id);
+        //write score
+        writeScore(name, game.getPoints());
         return Response.newBuilder()
                 .setResponseType(Response.ResponseType.BYE)
                 .setMessage("Thank you for playing! goodbye.")
@@ -587,4 +616,5 @@ public class SockBaseServer {
         if (serverSock != null) serverSock.close();
         logger.info("Closed all resources for client ID {}", id);
     }
+
 }
