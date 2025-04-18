@@ -13,6 +13,8 @@ repositories {
 // json and protobuf dependencies 
 dependencies {
     implementation group: 'org.json', name: 'json', version: '20200518'
+    // https://mvnrepository.com/artifact/com.google.code.gson/gson
+    implementation group: 'com.google.code.gson', name: 'gson', version: '2.10.1'
     implementation group: 'com.google.protobuf', name: 'protobuf-java', version: '3.18.0'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
@@ -53,7 +55,7 @@ protobuf {
     }
 }
 ext {
-    port = project.findProperty('port') ?: '8000'
+    port = project.findProperty('port') ?: '9099'
     grading = project.findProperty('grading') ?: 'true'
     host = project.findProperty('host') ?: 'localhost'   // NEW
 }
@@ -89,17 +91,29 @@ tasks.register('runServer', JavaExec) {
     args false
 }
 
-//gradle runServer -Pport=9099
-tasks.register('runServerGrading', JavaExec) {
-    classpath = sourceSets.main.runtimeClasspath
-    description = "Run Server"
-    mainClass = 'server.SockBaseServer'
-    // default args
-    args port
-    args true
-}
+////gradle runServer -Pport=9099
+//tasks.register('runServerGrading', JavaExec) {
+//    classpath = sourceSets.main.runtimeClasspath
+//    description = "Run Server"
+//    mainClass = 'server.SockBaseServer'
+//    // default args
+//    args port
+//    args true
+//}
 
 tasks.register('runThreaded', JavaExec) {
+    description = "Run Threaded Server"
+    group = 'server'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'server.ThreadedSudokuServer'
+    //            <port>     <gradingMode>  [bindHost]
+    args port, grading, host
+    jvmArgs "-DmaxThreads=20"    // optional bound
+}
+
+tasks.register('runServerGrading', JavaExec) {
+    description = "Run Thread Server with Grading"
+    group = 'server'
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'server.ThreadedSudokuServer'
     //            <port>     <gradingMode>  [bindHost]
