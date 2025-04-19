@@ -81,15 +81,15 @@ tasks.register('runClient', JavaExec) {
     args port
 }
 
-//gradle runServer -Pport=9099
-tasks.register('runServer', JavaExec) {
-    classpath = sourceSets.main.runtimeClasspath
-    description = "Run Server"
-    mainClass = 'server.SockBaseServer'
-    // default args
-    args port
-    args false
-}
+////gradle runServer -Pport=9099
+//tasks.register('runServer', JavaExec) {
+//    classpath = sourceSets.main.runtimeClasspath
+//    description = "Run Server"
+//    mainClass = 'server.SockBaseServer'
+//    // default args
+//    args port
+//    args false
+//}
 
 ////gradle runServer -Pport=9099
 //tasks.register('runServerGrading', JavaExec) {
@@ -101,7 +101,7 @@ tasks.register('runServer', JavaExec) {
 //    args true
 //}
 
-tasks.register('runThreaded', JavaExec) {
+tasks.register('runServer', JavaExec) {
     description = "Run Threaded Server"
     group = 'server'
     classpath = sourceSets.main.runtimeClasspath
