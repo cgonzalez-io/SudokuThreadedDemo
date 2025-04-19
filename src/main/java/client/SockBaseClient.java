@@ -6,365 +6,225 @@ import buffers.ResponseProtos.Response;
 import java.io.*;
 import java.net.Socket;
 
-/**
- * This class represents a basic socket-based client that communicates with a server using a predefined protocol.
- * The client sends requests and receives responses from the server, allowing interaction through user input.
- * It supports basic operations such as initiating connections, handling server responses, and performing specific actions
- * like name requests, menu selections, and board manipulation.
- * The main method establishes a connection to a server with a specified host and port.
- * It manages input/output streams and continuously handles responses from the server.
- * Based on the server response type, the client builds appropriate subsequent requests and sends them back.
- */
-class SockBaseClient {
-    public static void main(String[] args) throws Exception {
-        Socket serverSock = null;
-        OutputStream out = null;
-        InputStream in = null;
-        int i1 = 0, i2 = 0;
-        int port = 8000; // default port
+public class SockBaseClient {
+    private static final BufferedReader console = new BufferedReader(new InputStreamReader(System.in));
 
-        // Make sure two arguments are given
+    /**
+     * The main method serves as the entry point for the SockBaseClient application.
+     * It establishes a connection to the server using the provided host and port,
+     * and facilitates interaction between the client and the server. The method
+     * handles different types of responses from the server, including greeting,
+     * leaderboard, start game, error, and termination messages.
+     *
+     * @param args Command-line arguments where the first argument is the server host
+     *             and the second is the server port. The method expects exactly two
+     *             arguments. If the arguments are not provided or are invalid, the
+     *             program provides usage instructions and terminates.
+     * @throws Exception If any IO or parsing errors occur during the execution.
+     */
+    public static void main(String[] args) throws Exception {
         if (args.length != 2) {
-            System.out.println("Expected arguments: <host(String)> <port(int)>");
+            System.err.println("Usage: java client.SockBaseClient <host> <port>");
             System.exit(1);
         }
         String host = args[0];
-        try {
-            port = Integer.parseInt(args[1]);
-        } catch (NumberFormatException nfe) {
-            System.out.println("[Port] must be integer");
-            System.exit(2);
-        }
+        int port = Integer.parseInt(args[1]);
 
-        // Build the first request object just including the name
-        Request op = nameRequest().build();
-        Response response;
-        try {
-            // connect to the server
-            serverSock = new Socket(host, port);
+        try (Socket sock = new Socket(host, port);
+             InputStream in = sock.getInputStream();
+             OutputStream out = sock.getOutputStream()) {
+            // 1) send NAME
+            Request nameReq = nameRequest().build();
+            nameReq.writeDelimitedTo(out);
 
-            // write to the server
-            out = serverSock.getOutputStream();
-            in = serverSock.getInputStream();
-
-            op.writeDelimitedTo(out);
-
+            // 2) main loop
             while (true) {
-                // read from the server
-                response = Response.parseDelimitedFrom(in);
-                System.out.println("Got a response: " + response.toString());
+                Response resp = Response.parseDelimitedFrom(in);
+                if (resp == null) break;  // server gone
 
-                Request.Builder req = Request.newBuilder();
-
-                switch (response.getResponseType()) {
+                switch (resp.getResponseType()) {
                     case GREETING:
-                        System.out.println(response.getMessage());
-                        req = chooseMenu(req, response);
+                        handleGreeting(resp, out);
                         break;
+
+                    case LEADERBOARD:
+                        System.out.println("=== Leaderboard ===");
+                        resp.getLeaderList().forEach(e ->
+                                System.out.printf("%s : %d points, %d logins%n", e.getName(), e.getPoints(), e.getLogins())
+                        );
+                        System.out.println();
+                        handleGreeting(resp, out);
+                        break;
+
+                    case START:
+                        System.out.println(resp.getBoard());
+                        handleInGame(in, out);
+                        break;
+
+
                     case ERROR:
-                        System.out.println("Error: " + response.getMessage() + "Type: " + response.getErrorType());
-                        if (response.getNext() == 1) {
-                            req = nameRequest();
-                        } else {
-                            System.out.println("That error type is not handled yet");
-                            req = nameRequest();
+                        System.err.println("Server error: " + resp.getMessage().trim());
+                        if (resp.getNext() == 2) {
+                            handleGreeting(resp, out);
+                        } else if (resp.getNext() == 1) {
+                            Request nr = nameRequest().build();
+                            nr.writeDelimitedTo(out);
                         }
                         break;
+
+                    case BYE:
+                        System.out.println(resp.getMessage());
+                        return;
+
+                    default:
+                        System.err.println("Unexpected response: " + resp);
+                        return;
                 }
-                req.build().writeDelimitedTo(out);
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            exitAndClose(in, out, serverSock);
         }
     }
 
     /**
-     * handles building a simple name requests, asks the user for their name and builds the request
-     *
-     * @return Request.Builder which holds all teh information for the NAME request
+     * Build a NAME request by asking the user.
      */
     static Request.Builder nameRequest() throws IOException {
-        System.out.println("Please provide your name for the server.");
-        BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in));
-        String strToSend = stdin.readLine();
-
+        System.out.print("Enter your name: ");
+        System.out.flush();
+        String name = console.readLine().trim();
         return Request.newBuilder()
                 .setOperationType(Request.OperationType.NAME)
-                .setName(strToSend);
+                .setName(name);
     }
 
     /**
-     * Shows the main menu and lets the user choose a number, it builds the request for the next server call
-     *
-     * @return Request.Builder which holds the information the server needs for a specific request
+     * After GREETING or ERROR(next=2), prompt 1=leaderboard,2=play,3=quit
      */
-    static Request.Builder chooseMenu(Request.Builder req, Response response) throws IOException {
+    static void handleGreeting(Response resp, OutputStream out) throws IOException {
+        System.out.println(resp.getMessage());
+        System.out.println(resp.getMenuoptions());
         while (true) {
-            System.out.println(response.getMenuoptions());
-            System.out.print("Enter a number 1-3: ");
-            BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in));
-            String menu_select = stdin.readLine();
-            System.out.println(menu_select);
-            switch (menu_select) {
-                // needs to include the other requests
+            System.out.print("Choose (1-3): ");
+            System.out.flush();
+            String choice = console.readLine().trim();
+            Request.Builder req = Request.newBuilder();
+            switch (choice) {
+                case "1":
+                    req.setOperationType(Request.OperationType.LEADERBOARD);
+                    req.build().writeDelimitedTo(out);
+                    return;
                 case "2":
-                    req.setOperationType(Request.OperationType.START); // this is not a complete START request!! Just as example
-                    return req;
+                    System.out.print("Choose difficulty (1–20): ");
+                    System.out.flush();
+                    int d = Integer.parseInt(console.readLine().trim());
+                    req.setOperationType(Request.OperationType.START)
+                            .setDifficulty(d)
+                            .build()
+                            .writeDelimitedTo(out);
+                    return;
+                case "3":
+                    req.setOperationType(Request.OperationType.QUIT)
+                            .build()
+                            .writeDelimitedTo(out);
+                    return;
                 default:
-                    System.out.println("\nNot a valid choice, please choose again");
+                    System.out.println("Invalid choice, try again.");
+            }
+        }
+    }
+
+    /**
+     * When inside a game (after START), loop on PLAY/WON until we hit WON or quit.
+     */
+    static void handleInGame(InputStream in, OutputStream out) throws IOException {
+        while (true) {
+            Response r = Response.parseDelimitedFrom(in);
+            if (r == null) return;
+
+            switch (r.getResponseType()) {
+                case PLAY:
+                    System.out.println(r.getBoard());
+                    System.out.println("Points: " + r.getPoints());
+                    System.out.println(r.getMenuoptions());
+                    System.out.print("> ");
+                    System.out.flush();
+                    String inp = console.readLine().trim();
+                    Request.Builder next = Request.newBuilder();
+                    if (inp.equalsIgnoreCase("exit")) {
+                        next.setOperationType(Request.OperationType.QUIT);
+                    } else if (inp.equalsIgnoreCase("r")) {
+                        next.setOperationType(Request.OperationType.CLEAR)
+                                .setRow(-1).setColumn(-1).setValue(6);
+                    } else if (inp.equalsIgnoreCase("c")) {
+                        int[] coords = boardSelectionClear();
+                        next.setOperationType(Request.OperationType.CLEAR)
+                                .setRow(coords[0]).setColumn(coords[1]).setValue(coords[2]);
+                    } else {
+                        int row = Integer.parseInt(inp);
+                        System.out.print("  col (1–9)? ");
+                        System.out.flush();
+                        int col = Integer.parseInt(console.readLine().trim());
+                        System.out.print("  val (1–9)? ");
+                        System.out.flush();
+                        int val = Integer.parseInt(console.readLine().trim());
+                        next.setOperationType(Request.OperationType.UPDATE)
+                                .setRow(row).setColumn(col).setValue(val);
+                    }
+                    next.build().writeDelimitedTo(out);
                     break;
+
+                case WON:
+                    System.out.println(r.getBoard());
+                    System.out.println(r.getMessage());
+                    System.out.println("Points this game: " + r.getPoints());
+                    return;
+
+                case ERROR:
+                    System.err.println("Error: " + r.getMessage().trim());
+                    break;
+
+                default:
+                    System.err.println("Unexpected in‑game response: " + r);
+                    return;
             }
         }
     }
 
     /**
-     * Exits the connection
+     * clear submenu: pick which type of clear (value, row, column, grid, board)
      */
-    static void exitAndClose(InputStream in, OutputStream out, Socket serverSock) throws IOException {
-        if (in != null) in.close();
-        if (out != null) out.close();
-        if (serverSock != null) serverSock.close();
-        System.exit(0);
-    }
-
-    /**
-     * Handles the clear menu logic when the user chooses that in Game menu. It retuns the values exactly
-     * as needed in the CLEAR request row int[0], column int[1], value int[3]
-     */
-    static int[] boardSelectionClear() throws Exception {
-        BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in));
-
-        System.out.println("Choose what kind of clear by entering an integer (1 - 5)");
-        System.out.print(" 1 - Clear value \n 2 - Clear row \n 3 - Clear column \n 4 - Clear Grid \n 5 - Clear Board \n");
-
-        String selection = stdin.readLine();
-
-        while (true) {
-            if (selection.equalsIgnoreCase("exit")) {
-                return new int[]{Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
-            }
-            try {
-                int temp = Integer.parseInt(selection);
-
-                if (temp < 1 || temp > 5) {
-                    throw new NumberFormatException();
-                }
-
-                break;
-            } catch (NumberFormatException nfe) {
-                System.out.println("That's not an integer!");
-                System.out.println("Choose what kind of clear by entering an integer (1 - 5)");
-                System.out.print("1 - Clear value \n 2 - Clear row \n 3 - Clear column \n 4 - Clear Grid \n 5 - Clear Board \n");
-            }
-            selection = stdin.readLine();
-        }
-
-        int[] coordinates = new int[3];
-
-        switch (selection) {
-            case "1":
-                // clear value, so array will have {row, col, 1}
-                coordinates = boardSelectionClearValue();
-                break;
-            case "2":
-                // clear row, so array will have {row, -1, 2}
-                coordinates = boardSelectionClearRow();
-                break;
-            case "3":
-                // clear col, so array will have {-1, col, 3}
-                coordinates = boardSelectionClearCol();
-                break;
-            case "4":
-                // clear grid, so array will have {gridNum, -1, 4}
-                coordinates = boardSelectionClearGrid();
-                break;
-            case "5":
-                // clear entire board, so array will have {-1, -1, 5}
-                coordinates[0] = -1;
-                coordinates[1] = -1;
-                coordinates[2] = 5;
-                break;
+    private static int[] boardSelectionClear() throws IOException {
+        System.out.println("Clear options:");
+        System.out.println(" 1) Clear single value");
+        System.out.println(" 2) Clear row");
+        System.out.println(" 3) Clear column");
+        System.out.println(" 4) Clear 3×3 grid");
+        System.out.println(" 5) Clear entire board");
+        System.out.print("> ");
+        System.out.flush();
+        int sel = Integer.parseInt(console.readLine().trim());
+        switch (sel) {
+            case 1:
+                System.out.print(" Row (1-9): ");
+                System.out.flush();
+                int r = Integer.parseInt(console.readLine().trim());
+                System.out.print(" Col (1-9): ");
+                System.out.flush();
+                int c = Integer.parseInt(console.readLine().trim());
+                return new int[]{r, c, 1};
+            case 2:
+                System.out.print(" Row (1-9): ");
+                System.out.flush();
+                return new int[]{Integer.parseInt(console.readLine().trim()), -1, 2};
+            case 3:
+                System.out.print(" Col (1-9): ");
+                System.out.flush();
+                return new int[]{-1, Integer.parseInt(console.readLine().trim()), 3};
+            case 4:
+                System.out.print(" Grid# (1-9): ");
+                System.out.flush();
+                return new int[]{Integer.parseInt(console.readLine().trim()), -1, 4};
             default:
-                break;
+                return new int[]{-1, -1, 5};
         }
-
-        return coordinates;
-    }
-
-    /**
-     * Prompts the user to select the row and column of a value they wish to clear
-     * from a board. The method captures user input for the row and column,
-     * validates it as integers within the range of 1 to 9, and checks for an "exit"
-     * command. If the user enters "exit", it returns an array with marker values
-     * indicating termination.
-     * @return An integer array of size 3, where:
-     *         - index 0 represents the selected row (1-9, or Integer.MIN_VALUE for exit),
-     *         - index 1 represents the selected column (1-9, or Integer.MIN_VALUE for exit),
-     *         - index 2 is set to 1, indicating a value-clear action.
-     * @throws Exception if an I/O error occurs while reading user input.
-     */
-    static int[] boardSelectionClearValue() throws Exception {
-        int[] coordinates = new int[3];
-
-        BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in));
-
-        System.out.println("Choose coordinates of the value you want to clear");
-        System.out.print("Enter the row as an integer (1 - 9): ");
-        String row = stdin.readLine();
-
-        while (true) {
-            if (row.equalsIgnoreCase("exit")) {
-                return new int[]{Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
-            }
-            try {
-                Integer.parseInt(row);
-                break;
-            } catch (NumberFormatException nfe) {
-                System.out.println("That's not an integer!");
-                System.out.print("Enter the row as an integer (1 - 9): ");
-            }
-            row = stdin.readLine();
-        }
-
-        coordinates[0] = Integer.parseInt(row);
-
-        System.out.print("Enter the column as an integer (1 - 9): ");
-        String col = stdin.readLine();
-
-        while (true) {
-            if (col.equalsIgnoreCase("exit")) {
-                return new int[]{Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
-            }
-            try {
-                Integer.parseInt(col);
-                break;
-            } catch (NumberFormatException nfe) {
-                System.out.println("That's not an integer!");
-                System.out.print("Enter the column as an integer (1 - 9): ");
-            }
-            col = stdin.readLine();
-        }
-
-        coordinates[1] = Integer.parseInt(col);
-        coordinates[2] = 1;
-
-        return coordinates;
-    }
-
-    /**
-     * Handles logic for selecting and clearing an entire row in a game board.
-     * Prompts the user to input an integer representing the row to clear (from 1 to 9),
-     * or to type "exit" to terminate the selection process.
-     * @return An integer array of size 3, where:
-     *         - The first element is the row number to clear.
-     *         - The second element is set to -1 as a placeholder.
-     *         - The third element is a constant value of 2 to denote a row clear request.
-     *         If the user inputs "exit*/
-    static int[] boardSelectionClearRow() throws Exception {
-        int[] coordinates = new int[3];
-
-        BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in));
-
-        System.out.println("Choose the row you want to clear");
-        System.out.print("Enter the row as an integer (1 - 9): ");
-        String row = stdin.readLine();
-
-        while (true) {
-            if (row.equalsIgnoreCase("exit")) {
-                return new int[]{Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
-            }
-            try {
-                Integer.parseInt(row);
-                break;
-            } catch (NumberFormatException nfe) {
-                System.out.println("That's not an integer!");
-                System.out.print("Enter the row as an integer (1 - 9): ");
-            }
-            row = stdin.readLine();
-        }
-
-        coordinates[0] = Integer.parseInt(row);
-        coordinates[1] = -1;
-        coordinates[2] = 2;
-
-        return coordinates;
-    }
-
-    /**
-     * Handles the logic for clearing a specific column in the game board.
-     * Prompts the user to input a column number between 1 and 9 and validates the input.
-     * If user inputs 'exit', an array with {@code Integer.MIN_VALUE} for all elements is returned.
-     * @return An integer array of size 3 where:
-     *         {@code array[0] = -1}, {@code array[1]} contains the selected column number,
-     *         and {@code array[2] = 3} representing the column clear action.
-     * @throws Exception If an error occurs*/
-    static int[] boardSelectionClearCol() throws Exception {
-        int[] coordinates = new int[3];
-
-        BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in));
-
-        System.out.println("Choose the column you want to clear");
-        System.out.print("Enter the column as an integer (1 - 9): ");
-        String col = stdin.readLine();
-
-        while (true) {
-            if (col.equalsIgnoreCase("exit")) {
-                return new int[]{Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
-            }
-            try {
-                Integer.parseInt(col);
-                break;
-            } catch (NumberFormatException nfe) {
-                System.out.println("That's not an integer!");
-                System.out.print("Enter the column as an integer (1 - 9): ");
-            }
-            col = stdin.readLine();
-        }
-
-        coordinates[0] = -1;
-        coordinates[1] = Integer.parseInt(col);
-        coordinates[2] = 3;
-        return coordinates;
-    }
-
-    /**
-     * Prompts the user to select a grid area to clear and returns the corresponding
-     * grid selection as an integer array. The method asks the user to input a number
-     * between 1 and 9 to indicate the area of the grid to be cleared.
-     * If the user inputs "exit", the method returns an array with Integer.MIN_VALUE
-     * as all elements, signaling an exit operation.
-     * @return an integer array where:
-     *         - index 0 contains*/
-    static int[] boardSelectionClearGrid() throws Exception {
-        int[] coordinates = new int[3];
-
-        BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in));
-
-        System.out.println("Choose area of the grid you want to clear");
-        System.out.println(" 1 2 3 \n 4 5 6 \n 7 8 9 \n");
-        System.out.print("Enter the grid as an integer (1 - 9): ");
-        String grid = stdin.readLine();
-
-        while (true) {
-            if (grid.equalsIgnoreCase("exit")) {
-                return new int[]{Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
-            }
-            try {
-                Integer.parseInt(grid);
-                break;
-            } catch (NumberFormatException nfe) {
-                System.out.println("That's not an integer!");
-                System.out.print("Enter the grid as an integer (1 - 9): ");
-            }
-            grid = stdin.readLine();
-        }
-
-        coordinates[0] = Integer.parseInt(grid);
-        coordinates[1] = -1;
-        coordinates[2] = 4;
-
-        return coordinates;
     }
 }
