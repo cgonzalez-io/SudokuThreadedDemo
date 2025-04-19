@@ -57,7 +57,6 @@ public class SockBaseClient {
                         break;
 
                     case START:
-                        System.out.println(resp.getMessage());
                         handleInGame(resp, in, out);
                         break;
 
@@ -146,7 +145,7 @@ public class SockBaseClient {
                     resp.getResponseType() == Response.ResponseType.PLAY) {
 
                 // server‐sent text + board + your points
-                System.out.print(resp.getMessage());
+                System.out.println(resp.getMessage());
                 System.out.print(resp.getBoard());
                 System.out.printf("Points: %d%n", resp.getPoints());
                 System.out.println(resp.getMenuoptions());
@@ -191,9 +190,9 @@ public class SockBaseClient {
                 // send it and await the next server response
                 next.build().writeDelimitedTo(out);
             } else if (resp.getResponseType() == Response.ResponseType.WON) {
-                System.out.println(resp.getBoard());
                 System.out.println(resp.getMessage());
                 System.out.printf("Points this game: %d%n", resp.getPoints());
+                handleGreeting(resp, out);
                 return;  // back to main menu
 
             } else if (resp.getResponseType() == Response.ResponseType.ERROR) {
