@@ -214,6 +214,7 @@ public class ThreadedSudokuServer {
                                 inGame = true;
                                 state = 3;
                                 logger.info("Client {} starting game with difficulty {}", id, diff);
+                                logger.info("Game solution: {}", game.getSolutionBoard());
                                 resp = Response.newBuilder()
                                         .setResponseType(Response.ResponseType.START)
                                         .setBoard(game.getDisplayBoard())

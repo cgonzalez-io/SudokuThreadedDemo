@@ -57,10 +57,9 @@ public class SockBaseClient {
                         break;
 
                     case START:
-                        System.out.println(resp.getBoard());
-                        handleInGame(in, out);
+                        System.out.println(resp.getMessage());
+                        handleInGame(resp, in, out);
                         break;
-
 
                     case ERROR:
                         System.err.println("Server error: " + resp.getMessage().trim());
@@ -133,59 +132,82 @@ public class SockBaseClient {
     }
 
     /**
-     * When inside a game (after START), loop on PLAY/WON until we hit WON or quit.
+     * In‑game loop.  We treat the very first `resp` (START) exactly like a PLAY,
+     * then parse further PLAY / WON / ERROR messages from the server in the loop.
      */
-    static void handleInGame(InputStream in, OutputStream out) throws IOException {
+    static void handleInGame(Response firstResp,
+                             InputStream in,
+                             OutputStream out) throws IOException {
+        Response resp = firstResp;
+
         while (true) {
-            Response r = Response.parseDelimitedFrom(in);
-            if (r == null) return;
+            // For PLAY and also the initial START, print:
+            if (resp.getResponseType() == Response.ResponseType.START ||
+                    resp.getResponseType() == Response.ResponseType.PLAY) {
 
-            switch (r.getResponseType()) {
-                case PLAY:
-                    System.out.println(r.getBoard());
-                    System.out.println("Points: " + r.getPoints());
-                    System.out.println(r.getMenuoptions());
-                    System.out.print("> ");
+                // server‐sent text + board + your points
+                System.out.print(resp.getMessage());
+                System.out.print(resp.getBoard());
+                System.out.printf("Points: %d%n", resp.getPoints());
+                System.out.println(resp.getMenuoptions());
+                System.out.print("> ");
+                System.out.flush();
+
+                // read your move
+                String inp = console.readLine().trim();
+                Request.Builder next = Request.newBuilder();
+
+                if (inp.equalsIgnoreCase("exit")) {
+                    next.setOperationType(Request.OperationType.QUIT);
+
+                } else if (inp.equalsIgnoreCase("r")) {
+                    next.setOperationType(Request.OperationType.CLEAR)
+                            .setRow(-1).setColumn(-1).setValue(6);
+
+                } else if (inp.equalsIgnoreCase("c")) {
+                    int[] coords = boardSelectionClear();
+                    next.setOperationType(Request.OperationType.CLEAR)
+                            .setRow(coords[0])
+                            .setColumn(coords[1])
+                            .setValue(coords[2]);
+
+                } else {
+                    // numeric row → ask col + val
+                    int row = Integer.parseInt(inp);
+                    System.out.print("  col (1–9)? ");
                     System.out.flush();
-                    String inp = console.readLine().trim();
-                    Request.Builder next = Request.newBuilder();
-                    if (inp.equalsIgnoreCase("exit")) {
-                        next.setOperationType(Request.OperationType.QUIT);
-                    } else if (inp.equalsIgnoreCase("r")) {
-                        next.setOperationType(Request.OperationType.CLEAR)
-                                .setRow(-1).setColumn(-1).setValue(6);
-                    } else if (inp.equalsIgnoreCase("c")) {
-                        int[] coords = boardSelectionClear();
-                        next.setOperationType(Request.OperationType.CLEAR)
-                                .setRow(coords[0]).setColumn(coords[1]).setValue(coords[2]);
-                    } else {
-                        int row = Integer.parseInt(inp);
-                        System.out.print("  col (1–9)? ");
-                        System.out.flush();
-                        int col = Integer.parseInt(console.readLine().trim());
-                        System.out.print("  val (1–9)? ");
-                        System.out.flush();
-                        int val = Integer.parseInt(console.readLine().trim());
-                        next.setOperationType(Request.OperationType.UPDATE)
-                                .setRow(row).setColumn(col).setValue(val);
-                    }
-                    next.build().writeDelimitedTo(out);
-                    break;
+                    int col = Integer.parseInt(console.readLine().trim());
 
-                case WON:
-                    System.out.println(r.getBoard());
-                    System.out.println(r.getMessage());
-                    System.out.println("Points this game: " + r.getPoints());
-                    return;
+                    System.out.print("  val (1–9)? ");
+                    System.out.flush();
+                    int val = Integer.parseInt(console.readLine().trim());
 
-                case ERROR:
-                    System.err.println("Error: " + r.getMessage().trim());
-                    break;
+                    next.setOperationType(Request.OperationType.UPDATE)
+                            .setRow(row)
+                            .setColumn(col)
+                            .setValue(val);
+                }
 
-                default:
-                    System.err.println("Unexpected in‑game response: " + r);
-                    return;
+                // send it and await the next server response
+                next.build().writeDelimitedTo(out);
+            } else if (resp.getResponseType() == Response.ResponseType.WON) {
+                System.out.println(resp.getBoard());
+                System.out.println(resp.getMessage());
+                System.out.printf("Points this game: %d%n", resp.getPoints());
+                return;  // back to main menu
+
+            } else if (resp.getResponseType() == Response.ResponseType.ERROR) {
+                System.err.println("Error: " + resp.getMessage().trim());
+                // server in‐game ERROR includes its MENU_GAME text
+                System.out.print(resp.getMenuoptions());
+            } else {
+                System.err.println("Unexpected in‑game response: " + resp);
+                return;
             }
+
+            // grab the next server packet
+            resp = Response.parseDelimitedFrom(in);
+            if (resp == null) return;  // server died
         }
     }
 

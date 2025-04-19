@@ -437,6 +437,26 @@ public class Game {
     }
 
     /**
+     * Generates a string representation of the solved Sudoku board, formatted with spaces
+     * and newlines to resemble the traditional Sudoku grid layout.
+     * The board includes separators between 3x3 grids for better readability.
+     * @return a string representation of the solved Sudoku board, with rows, columns,
+     *         and grids clearly delineated for easy visualization.
+     */
+    public String getSolutionBoard() {
+        StringBuilder sb = new StringBuilder();
+        for (int row = 0; row < size; row++) {
+            if (row > 0 && row % 3 == 0) sb.append("\n");
+            for (int col = 0; col < size; col++) {
+                if (col > 0 && col % 3 == 0) sb.append(" ");
+                sb.append(solvedBoard[row][col]).append(" ");
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
+
+    /**
      * Creates a completely new Sudoku board with Xs
      */
     private void prepareForPlay() {
@@ -487,4 +507,5 @@ public class Game {
 
         return numbers;
     }
+
 }
