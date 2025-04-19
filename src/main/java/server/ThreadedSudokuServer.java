@@ -120,7 +120,7 @@ public class ThreadedSudokuServer {
             int clientId = 1;
             while (true) {
                 Socket clientSock = server.accept();
-                logger.debug("Accepted connection #{} from {}", clientId, clientSock.getRemoteSocketAddress());
+                logger.info("Accepted connection #{} from {}", clientId, clientSock.getRemoteSocketAddress());
                 pool.execute(new ClientTask(clientSock, new Game(), clientId++));
             }
         }
@@ -162,6 +162,7 @@ public class ThreadedSudokuServer {
                     switch (req.getOperationType()) {
                         case NAME -> {
                             if (req.getName().isBlank()) {
+                                logger.info("Client {} sent empty name", id);
                                 resp = errorResp(1, state);
                             } else {
                                 name = req.getName();
@@ -171,6 +172,7 @@ public class ThreadedSudokuServer {
                                         .incrementAndGet();
 
                                 state = 2;
+                                logger.info("Client {} logged in as {}", id, name);
                                 resp = Response.newBuilder()
                                         .setResponseType(Response.ResponseType.GREETING)
                                         .setMessage("Hello " + name + " and welcome to a simple game of Sudoku.")
@@ -197,17 +199,21 @@ public class ThreadedSudokuServer {
                                                 .build()
                                 );
                             });
+                            logger.info("Client {} requested leaderboard", id);
                             resp = lb.build();
                         }
 
                         case START -> {
+                            logger.info("Client {} starting game", id);
                             int diff = req.getDifficulty();
                             if (diff < 1 || diff > 20) {
+                                logger.info("Client {} requested invalid difficulty {}", id, diff);
                                 resp = errorResp(5, state);
                             } else {
                                 game.newGame(gradingMode, diff);
                                 inGame = true;
                                 state = 3;
+                                logger.info("Client {} starting game with difficulty {}", id, diff);
                                 resp = Response.newBuilder()
                                         .setResponseType(Response.ResponseType.START)
                                         .setBoard(game.getDisplayBoard())
@@ -219,6 +225,7 @@ public class ThreadedSudokuServer {
                         }
                         case UPDATE -> {
                             if (!inGame) {
+                                logger.info("Client {} updating game without starting a game", id);
                                 resp = errorResp(2, state);
                             } else {
                                 resp = updateResp(req, name);
@@ -227,6 +234,7 @@ public class ThreadedSudokuServer {
 
                         case CLEAR -> {
                             if (!inGame) {
+                                logger.info("Client {} clearing game without starting a game", id);
                                 resp = errorResp(2, state);
                             } else {
                                 resp = clearResp(req);
@@ -234,6 +242,7 @@ public class ThreadedSudokuServer {
                         }
 
                         case QUIT -> {
+                            logger.info("Client {} quitting game", id);
                             resp = Response.newBuilder()
                                     .setResponseType(Response.ResponseType.BYE)
                                     .setMessage("Thank you for playing! goodbye.")
@@ -265,7 +274,7 @@ public class ThreadedSudokuServer {
         private Response updateResp(Request req, String player) {
             int row = req.getRow(), col = req.getColumn(), val = req.getValue();
             if (row < 1 || row > 9 || col < 1 || col > 9 || val < 1 || val > 9) return errorResp(3, 3);
-
+            logger.info("Updating row={}, col={}, val={}", row, col, val);
             int result = game.updateBoard(row - 1, col - 1, val, 0);
             Response.EvalType et = switch (result) {
                 case 0 -> Response.EvalType.UPDATE;
@@ -295,6 +304,8 @@ public class ThreadedSudokuServer {
                 highScores
                         .computeIfAbsent(player, k -> new AtomicInteger(0))
                         .updateAndGet(old -> Math.max(old, finalPts));
+
+                logger.info("Player {} won with {} points", player, finalPts);
 
                 return Response.newBuilder().setResponseType(Response.ResponseType.WON)
                         .setBoard(game.getDisplayBoard()).setType(et).setMenuoptions(MENU_MAIN)
@@ -338,6 +349,7 @@ public class ThreadedSudokuServer {
                 default -> null;
             };
             if (et == null) return errorResp(2, 3);
+            logger.info("Clearing row={}, col={}, type={}", r, c, t);
             game.setPoints(-5);
             game.updateBoard(r, c, t, t);
             return Response.newBuilder().setResponseType(Response.ResponseType.PLAY)
@@ -354,6 +366,7 @@ public class ThreadedSudokuServer {
          * message, error code, next state, and menu options
          */
         private Response errorResp(int code, int next) {
+            logger.info("Error: code={}, next={}", code, next);
             String msg = switch (code) {
                 case 1 -> "\nError: required field missing or empty";
                 case 2 -> "\nError: request not supported";
