@@ -6,13 +6,13 @@ import buffers.ResponseProtos.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -81,6 +81,13 @@ public class ThreadedSudokuServer {
      */
     private static final ConcurrentMap<String, AtomicInteger> highScores = new ConcurrentHashMap<>();
     /**
+     * Represents the file used to persist the state of the leaderboard.
+     * This file is essential for saving and loading the state of the leaderboard
+     * to maintain consistency across server sessions.
+     */
+    // persistence file
+    private static final File STATE_FILE = new File("leaderboard.state");
+    /**
      * A flag indicating whether the application is running in grading mode.
      * When set to true, the application enables specific functionality
      * designed for grading or evaluation purposes. This may impact the way
@@ -89,20 +96,70 @@ public class ThreadedSudokuServer {
     private static volatile boolean gradingMode = true;
 
     /**
-     * Entry point for the ThreadedSudokuServer application. Initializes a server socket to listen for
-     * client connections, handles the configuration for the port and grading mode, and uses a thread
-     * pool to manage client tasks. The server can optionally bind to a specific host address.
-     *
-     * @param args Command-line arguments for configuring the server. Must include the port number as the
-     *             first argument and the grading mode (true or false) as the second argument. An optional
-     *             third argument can specify the bind host address; defaults to "0.0.0.0" if not provided.
-     * @throws Exception if an error occurs during server initialization or while handling client tasks.
+     * Loads the leaderboard state from a persisted file, if it exists.
+     * <p>
+     * This method reads two serialized Maps from a predefined file and populates the
+     * `loginCounts` and `highScores` static fields. The file is expected to contain login counts
+     * and high scores, which will be deserialized and converted into thread-safe structures.
+     * <p>
+     * If the file does not exist, the method will exit without performing any operations. If an
+     * exception occurs during the deserialization process, a warning will be logged via the `logger`.
+     * <p>
+     * Throws unchecked exceptions in case of critical I/O or deserialization issues.
      */
+    private static void loadState() {
+        if (!STATE_FILE.exists()) return;
+        try (ObjectInputStream in = new ObjectInputStream(new FileInputStream(STATE_FILE))) {
+            @SuppressWarnings("unchecked")
+            Map<String, Integer> savedLogins = (Map<String, Integer>) in.readObject();
+            @SuppressWarnings("unchecked")
+            Map<String, Integer> savedScores = (Map<String, Integer>) in.readObject();
+            savedLogins.forEach((name, cnt) -> loginCounts.put(name, new AtomicInteger(cnt)));
+            savedScores.forEach((name, pts) -> highScores.put(name, new AtomicInteger(pts)));
+            logger.info("Loaded leaderboard state: {} players", loginCounts.size());
+        } catch (Exception e) {
+            logger.warn("Failed to load leaderboard state", e);
+        }
+    }
+
+    /**
+     * Saves the current state of the leaderboard, including login counts and high scores,
+     * to a file specified by the constant STATE_FILE.
+     * <p>
+     * The method serializes two maps:
+     * - A map of player names to their login counts.
+     * - A map of player names to their high scores.
+     * <p>
+     * If the state is successfully saved, a log message is recorded indicating the number
+     * of players whose data was saved. If an exception occurs during the save operation
+     * (e.g., issues with file writing), a warning message is logged with the exception details.
+     * <p>
+     * The method ensures the output stream is properly closed after the operation,
+     * using a try-with-resources block for safe resource management.
+     */
+    private static void saveState() {
+        Map<String, Integer> toSaveLogins = new HashMap<>();
+        loginCounts.forEach((name, ai) -> toSaveLogins.put(name, ai.get()));
+        Map<String, Integer> toSaveScores = new HashMap<>();
+        highScores.forEach((name, ai) -> toSaveScores.put(name, ai.get()));
+        try (ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(STATE_FILE))) {
+            out.writeObject(toSaveLogins);
+            out.writeObject(toSaveScores);
+            logger.info("Saved leaderboard state: {} players", toSaveLogins.size());
+        } catch (IOException e) {
+            logger.warn("Failed to save leaderboard state", e);
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         if (args.length < 2 || args.length > 3) {
             logger.error("Usage: java server.ThreadedSudokuServer <port> <gradingMode(true|false)> [bindHost]");
             System.exit(1);
         }
+
+        // load persisted leaderboard on startup
+        loadState();
+        Runtime.getRuntime().addShutdownHook(new Thread(ThreadedSudokuServer::saveState));
 
         int port = Integer.parseInt(args[0]);
         gradingMode = Boolean.parseBoolean(args[1]);
@@ -166,11 +223,8 @@ public class ThreadedSudokuServer {
                                 resp = errorResp(1, state);
                             } else {
                                 name = req.getName();
-                                // track login count
-                                loginCounts
-                                        .computeIfAbsent(name, k -> new AtomicInteger(0))
-                                        .incrementAndGet();
-
+                                loginCounts.computeIfAbsent(name, k -> new AtomicInteger(0)).incrementAndGet();
+                                saveState();  // persist after login
                                 state = 2;
                                 logger.info("Client {} logged in as {}", id, name);
                                 resp = Response.newBuilder()

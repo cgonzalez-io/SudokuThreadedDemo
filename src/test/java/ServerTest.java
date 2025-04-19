@@ -32,7 +32,7 @@ public class ServerTest {
     public void setUp() throws Exception {
         System.out.println("check");
 
-        sock = new Socket("localhost", 8000);
+        sock = new Socket("localhost", 9099);
 
         // write to the server
         out = sock.getOutputStream();
