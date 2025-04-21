@@ -142,7 +142,11 @@ public class SockBaseClient {
         while (true) {
             // For PLAY and also the initial START, print:
             if (resp.getResponseType() == Response.ResponseType.START ||
-                    resp.getResponseType() == Response.ResponseType.PLAY) {
+                    resp.getResponseType() == Response.ResponseType.PLAY || resp.getResponseType() == Response.ResponseType.ERROR) {
+
+                if (resp.getResponseType() == Response.ResponseType.ERROR) {
+                    System.err.println(resp.getMessage());
+                }
 
                 // server‐sent text + board + your points
                 System.out.println(resp.getMessage());
@@ -195,10 +199,6 @@ public class SockBaseClient {
                 handleGreeting(resp, out);
                 return;  // back to main menu
 
-            } else if (resp.getResponseType() == Response.ResponseType.ERROR) {
-                System.err.println("Error: " + resp.getMessage().trim());
-                // server in‐game ERROR includes its MENU_GAME text
-                System.out.print(resp.getMenuoptions());
             } else {
                 System.err.println("Unexpected in‑game response: " + resp);
                 return;
